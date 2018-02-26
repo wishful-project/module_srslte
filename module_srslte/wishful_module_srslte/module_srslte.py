@@ -28,8 +28,11 @@ __version__ = "0.0.1"
 __email__ = "Justin Tallon"
 
 
-which_metric_dict = {'CFO' : 0 ,'SNR' : 1, 'RSRP' : 2, 'RSRQ' : 3, 'NOISE' : 4, 'CSI' : 5, 'N_FRAMES': 6, 'PDSCH_MISS':7, 'PDCCH_MISS':8, 'MOD':9, 'TBS':10}
-which_metric_dict_rev = {0 :'CFO'  ,1 :'SNR' , 2 :'RSRP' , 3 : 'RSRQ', 4 :'NOISE', 5 : 'CSI', 6 : 'N_FRAMES',7:'PDSCH_MISS', 8:'PDCCH_MISS', 9:'MOD',10:'TBS'}
+which_metric_dict = {'CFO' : 0 ,'SNR' : 1, 'RSRP' : 2, 'RSRQ' : 3, 'NOISE' : 4, 'CSI' : 5, 'NUM_RX': 6, 'PDSCH_MISS':7, 'PDCCH_MISS':8, 'MOD':9, 'TBS':10, 'RSSI':11,'CQI':12,'ENB_ID':13}
+which_metric_dict_rev = {0 :'CFO'  ,1 :'SNR' , 2 :'RSRP' , 3 : 'RSRQ', 4 :'NOISE', 5 : 'CSI', 6 : 'N_FRAMES',7:'PDSCH_MISS', 8:'PDCCH_MISS', 9:'MOD',10:'TBS',11:'RSSI',12:'CQI',13:'ENB_ID'}
+
+which_metric_dict_enb = {'NUM_TX':0}
+which_metric_dict_enb = {0:'NUM_TX'}
 
 which_parameter_dict = {'MCS':0, 'PRBS':1, 'FREQ':2, 'GAIN':3}
 which_parameter_dict_rev = {0:'MCS', 1: 'PRBS',2:'FREQ',3:'GAIN'}
@@ -81,6 +84,7 @@ class srslte_iface:
         self.ue_sss_algorithm = sss_algorithm_dict['SSS_DIFF']
         self.ue_snr_ema_coeff = 0.1
         self.ue_cfo_tol = 50.0
+        self.ue_rnti = 0xFFFF
         #input parameters for the eNb
         self.eNb_frequency = 2491000000
         self.eNb_rf_amp = 0.8
@@ -91,6 +95,7 @@ class srslte_iface:
         self.eNb_MCS = 1
         self.eNb_send_pdsch_data = 1
         self.eNb_net_port = 0
+        self.eNb_rnti = 0x1234
         print("srs interface object has been initialized\n")
 
     def throw_signal_function(self,frame, event, arg):
@@ -156,6 +161,10 @@ class srslte_iface:
         self.ue_cfo_tol = cfo_tol
         return self.ue_cfo_tol
 
+    def set_ue_rnti(self,rnti):
+        self.ue_rnti = rnti
+        return self.ue_rnti
+
     def print_parameter_values(self):
         print ("UE frequency :", self.ue_frequency)
         print ("UE equalizer :", self.ue_equalizer)
@@ -213,13 +222,24 @@ class srslte_iface:
         TBS = self.send_command(True, 0, which_metric_dict['TBS'], 1, 0, 0)
         return TBS
 
+    def get_ue_rssi(self):
+        RSSI = self.send_command(True, 0, which_metric_dict['RSSI'], 1, 0, 0)
+        return RSSI
+
+    def get_ue_cqi(self):
+        CQI = self.send_command(True, 0, which_metric_dict['CQI'], 1, 0, 0)
+        return CQI
+
+    def get_ue_enb_id(self):
+        ENB_ID = self.send_command(True, 0, which_metric_dict['ENB_ID'], 1, 0, 0)
+        return ENB_ID
 
     def start_ue(self):
         self.is_ue = True
         self.launch_response_reception_thread(True)
         time.sleep(5)
         os.chdir(self.directory)
-        self.ue_filename = self.ue_filename + ' -f ' + str(self.ue_frequency)  + ' -y ' + str(self.ue_cfo_tol) + ' -E ' + str(self.ue_snr_ema_coeff)  + ' -X ' + str(self.ue_sss_algorithm)  + ' -N ' + str(self.ue_noise_est_alg)  + ' -T ' + str(self.ue_max_turbo_decoder_its)   + ' -e ' + self.ue_equalizer
+        self.ue_filename = self.ue_filename + ' -f ' + str(self.ue_frequency)  + ' -y ' + str(self.ue_cfo_tol) + ' -E ' + str(self.ue_snr_ema_coeff)  + ' -X ' + str(self.ue_sss_algorithm)  + ' -N ' + str(self.ue_noise_est_alg)  + ' -T ' + str(self.ue_max_turbo_decoder_its)   + ' -e ' + self.ue_equalizer +  ' -r ' + str(self.ue_rnti)
         f_duece = self.ue_filename.split()
         process = subprocess.Popen(f_duece)
         pid1 = process.pid
@@ -237,6 +257,11 @@ class srslte_iface:
         for t in self.threads:
             t.join
         print("[agent] UE successfully stopped")
+
+
+    def get_enb_num_tx(self):
+        NUM_TX = self.send_command(False, 0, which_metric_dict['NUM_TX'], 1, 0, 0)
+        return NUM_TX
 
     def set_enb_frequency(self,frequency):
         self.eNb_frequency = frequency
@@ -289,13 +314,17 @@ class srslte_iface:
         self.eNb_send_pdsch_data = send_pdsch_data
         return send_pdsch_data
 
+    def set_enb_rnti(self,rnti):
+        self.eNb_rnti = rnti
+        return rnti
+
     
     def start_enb(self):
         self.is_ue = False
         self.launch_response_reception_thread(False)
         time.sleep(5)
         os.chdir(self.directory)
-        self.eNb_filename = self.eNb_filename + ' -f ' + str(self.eNb_frequency) + ' -p ' + str(self.eNb_no_of_prbs)  + ' -w ' + str(self.eNb_which_prbs) + '-g ' + str(self.eNb_gain)  + ' -l ' + str(self.eNb_rf_amp) + ' -m ' + str(self.eNb_MCS) + ' -u ' + str(self.eNb_net_port) + ' -P  '   + str(self.eNb_send_pdsch_data) 
+        self.eNb_filename = self.eNb_filename + ' -f ' + str(self.eNb_frequency) + ' -p ' + str(self.eNb_no_of_prbs)  + ' -w ' + str(self.eNb_which_prbs) + '-g ' + str(self.eNb_gain)  + ' -l ' + str(self.eNb_rf_amp) + ' -m ' + str(self.eNb_MCS) + ' -u ' + str(self.eNb_net_port) + ' -P  '   + str(self.eNb_send_pdsch_data) + ' -R ' +str(self.eNb_rnti)
         f_duece = self.eNb_filename.split()
         process = subprocess.Popen(f_duece)
         pid1 = process.pid
@@ -419,31 +448,45 @@ class SrslteModule(wishful_module.AgentModule):
     @wishful_module.bind_function(upis.radio.get_measurements)
     def srslte_get_measurements(self,measurement_key_list):
         out  = {}
-        for k in measurement_key_list:
-            if k == 'CFO':
-                out = {'CFO': self.srs.get_ue_cfo()}
-            elif k == 'SNR':
-                out = {'SNR': self.srs.get_ue_snr()}
-            elif k == 'RSRP':
-                out = {'RSRP': self.srs.get_ue_rsrp()}
-            elif k == 'RSRQ':
-                out = {'RSRQ': self.srs.get_ue_rsrq()}
-            elif k == 'NOISE':
-                out = {'NOISE': self.srs.get_ue_noise()}
-            elif k == 'CSI':
-                out = {'CSI': self.srs.get_ue_CSI()}
-            elif k == 'N_FRAMES':
-                out = {'N_FRAMES': self.srs.get_ue_nFrames()}
-            elif k == 'PDSCH_MISS':
-                out = {'PDSCH_MISS': self.srs.get_ue_pdsch_miss()}
-            elif k == 'PDCCH_MISS':
-                out = {'PDCCH_MISS': self.srs.get_ue_pdcch_miss()}
-            elif k == 'MOD':
-                out = {'MOD': self.srs.get_ue_mod()}
-            elif k == 'TBS':
-                out = {'TBS': self.srs.get_ue_tbs()}
-            else:
-                print("invalid metric\n")
+        if self.srs.is_ue:
+            for k in measurement_key_list:
+                if k == 'CFO':
+                    out = {'CFO': self.srs.get_ue_cfo()}
+                elif k == 'SNR':
+                    out = {'SNR': self.srs.get_ue_snr()}
+                elif k == 'RSRP':
+                    out = {'RSRP': self.srs.get_ue_rsrp()}
+                elif k == 'RSRQ':
+                    out = {'RSRQ': self.srs.get_ue_rsrq()}
+                elif k == 'NOISE':
+                    out = {'NOISE': self.srs.get_ue_noise()}
+                elif k == 'CSI':
+                    out = {'CSI': self.srs.get_ue_CSI()}
+                elif k == 'N_FRAMES':
+                    out = {'N_FRAMES': self.srs.get_ue_nFrames()}
+                elif k == 'PDSCH_MISS':
+                    out = {'PDSCH_MISS': self.srs.get_ue_pdsch_miss()}
+                elif k == 'PDCCH_MISS':
+                    out = {'PDCCH_MISS': self.srs.get_ue_pdcch_miss()}
+                elif k == 'MOD':
+                    out = {'MOD': self.srs.get_ue_mod()}
+                elif k == 'TBS':
+                    out = {'TBS': self.srs.get_ue_tbs()}
+                elif k == 'RSSI':
+                    out = {'RSSI': self.srs.get_ue_rssi()}
+                elif k == 'CQI':
+                    out = {'CQI': self.srs.get_ue_cqi()}
+                elif k == 'ENB_ID':
+                    out = {'ENB_ID': self.srs.get_ue_enb_id()}
+                else:
+                    print("invalid metric\n")
+        else:
+            for k in measurement_key_list:
+                if k == 'NUM_TX':
+                    out = {'NUM_TX': self.srs.get_enb_num_tx()}
+                else:
+                    print("invalid metric\n")
+
         return out
 
     @wishful_module.bind_function(upis.radio.activate_radio_program)
@@ -476,68 +519,86 @@ class SrslteModule(wishful_module.AgentModule):
 
     def srslte_set_ue_var(self, param_key_values_dict):
         for k, v in param_key_values_dict.items():
-            if k  == 'FREQ':
+            if k  == 'LTE_UE_DL_FREQ':
                 self.srs.set_ue_frequency(v)
-            elif k == 'EQUALIZER_MODE':
+            elif k == 'LTE_UE_EQUALIZER_MODE':
                 self.srs.set_ue_equalizer(v)
-            elif k == 'MAX_TURBO_ITS':
+            elif k == 'LTE_UE_MAX_TURBO_ITS':
                 self.srs.set_ue_max_turbo_decoder_its(v)
-            elif k == 'NOISE_EST_ALG':
+            elif k == 'LTE_NOISE_EST_ALG':
                 self.srs.set_ue_noise_est_alg(v)
-            elif k == 'SSS_ALGORITHM':
+            elif k == 'LTE_UE_SSS_ALGORITHM':
                 self.srs.set_ue_sss_algorithm(v)
-            elif k == 'SNR_EMA_COEFF':
+            elif k == 'LTE_UE_SNR_EMA_COEFF':
                 self.srs.set_ue_snr_ema_coeff(v)
-            elif k == 'CFO_TOL':
+            elif k == 'LTE_UE_CFO_TOL':
                 self.srs.set_ue_cfo_tol(v)
-            elif k == 'GAIN':
+            elif k == 'LTE_UE_RX_GAIN':
                 self.srs.set_ue_gain(v)
-            elif k == 'NO_OF_ANTENNAS':
+            elif k == 'LTE_UE_N_RX_ANT':
                 self.srs.set_ue_nof_antennas(v)
+            elif k == 'LTE_RX_RNTI':
+                self.srs.set_ue_rnti(v)
             else :
                 print("invalid parameter\n")
 
     def srslte_set_enb_var(self, param_key_values_dict):
         print("param_key_values_dict",param_key_values_dict)
         for k, v in param_key_values_dict.items():
-            if k == 'FREQ':
+            if k == 'LTE_ENB_DL_FREQ':
                 self.srs.set_enb_frequency(v)
-            elif k == 'RF_AMP':
+            elif k == 'LTE_ENB_RF_AMP':
                 self.srs.set_enb_rf_amp(v)
-            elif k == 'GAIN':
+            elif k == 'LTE_ENB_TX_GAIN':
                 self.srs.set_enb_gain(v)
-            elif k == 'NO_OF_FRAMES':
+            elif k == 'LTE_ENB_NO_OF_FRAMES':
                 self.srs.set_enb_no_of_frames(v)
-            elif k == 'NO_OF_PRBS':
-                self.srs.set_enb_no_of_prbs(v)
-            elif k == 'WHICH_PRBS':
+            elif k == 'LTE_ENB_DL_BW':
+                if v == 20000000:
+                    return_value = 100
+                elif v == 15000000:
+                    return_value = 75
+                elif v == 10000000:
+                    return_value = 50
+                elif v == 5000000:
+                    return_value = 25
+                elif v == 2000000:
+                    return_value = 6
+                else:
+                    print("invalid bandwidth\n")
+                self.srs.set_enb_no_of_prbs(return_value)
+            elif k == 'LTE_ENB_WHICH_PRBS':
                 self.srs.set_enb_which_prbs(v)
-            elif k == 'MCS':
+            elif k == 'LTE_ENB_MCS':
                 self.srs.set_enb_select_MCS(v)
+            elif k == 'LTE_ENB_RNTI':
+                self.srs.set_enb_rnti(v)
             else:
                 print("invalid parameter\n")
 
     def srslte_get_ue_var(self, param_key_list):
         ret = {}
         for k in param_key_list:
-            if k == 'FREQ':
-                ret.update({'FREQ': self.srs.ue_frequency})
-            elif k == 'EQUALIZER_MODE':
-                ret.update({'EQUALIZER_MODE':self.srs.ue_equalizer})
-            elif k == 'MAX_TURBO_ITS':
-                ret.update({'MAX_TURBO_ITS':self.srs.ue_max_turbo_decoder_its})
-            elif k == 'NOISE_EST_ALG':
-                ret.update({'NOISE_EST_ALG':self.srs.ue_noise_est_alg})
-            elif k == 'SSS_ALGORITHM':
-                ret.update({'SSS_ALGORITHM':self.srs.ue_sss_algorithm})
-            elif k == 'SNR_EMA_COEFF':
-                ret.update({'SNR_EMA_COEFF':self.srs.ue_snr_ema_coeff})
-            elif k == 'CFO_TOL':
-                ret.update({'CFO_TOL':self.srs.ue_cfo_tol})
-            elif k == 'GAIN':
-                ret.update({'GAIN':self.srs.ue_gain})
+            if k == 'LTE_UE_DL_FREQ':
+                ret.update({'LTE_UE_DL_FREQ': self.srs.ue_frequency})
+            elif k == 'LTE_UE_EQUALIZER_MODE':
+                ret.update({'LTE_UE_EQUALIZER_MODE':self.srs.ue_equalizer})
+            elif k == 'LTE_UE_MAX_TURBO_ITS':
+                ret.update({'LTE_UE_MAX_TURBO_ITS':self.srs.ue_max_turbo_decoder_its})
+            elif k == 'LTE_NOISE_EST_ALG':
+                ret.update({'LTE_NOISE_EST_ALG':self.srs.ue_noise_est_alg})
+            elif k == 'LTE_UE_SSS_ALGORITHM':
+                ret.update({'LTE_UE_SSS_ALGORITHM':self.srs.ue_sss_algorithm})
+            elif k == 'LTE_UE_SNR_EMA_COEFF':
+                ret.update({'LTE_UE_SNR_EMA_COEFF':self.srs.ue_snr_ema_coeff})
+            elif k == 'LTE_UE_CFO_TOL':
+                ret.update({'LTE_UE_CFO_TOL':self.srs.ue_cfo_tol})
+            elif k == 'LTE_UE_RX_GAIN':
+                ret.update({'LTE_UE_RX_GAIN':self.srs.ue_gain})
             elif k == 'NO_OF_ANTENNAS':
                 ret.update({'NO_OF_ANTENNAS':self.srs.ue_nof_antennas})
+            elif k == 'LTE_RX_RNTI':
+                ret.update({'LTE_RX_RNTI':self.srs.set_ue_rnti(v)})
             else:
                 print("invalid parameter\n")
         return ret
@@ -545,28 +606,36 @@ class SrslteModule(wishful_module.AgentModule):
     def srslte_get_enb_var(self, param_key_list):
         ret = {}
         for k  in param_key_list:
-            if k == 'FREQ':
-                ret.update({'FREQ': self.srs.eNb_frequency})
-            elif k == 'RF_AMP':
-                ret.update({'RF_AMP':self.srs.eNb_rf_amp})
-            elif k == 'GAIN':
-                ret.update({'GAIN':self.srs.eNb_gain})
-            elif k == 'NO_OF_FRAMES':
-                ret.update({'NO_OF_FRAMES':self.srs.eNb_no_of_frames})
-            elif k == 'NO_OF_PRBS':
-                ret.update({'NO_OF_PRBS':self.srs.eNb_no_of_prbs})
-            elif k == 'WHICH_PRBS':
-                ret.update({'WHICH_PRBS':self.srs.eNb_which_prbs})
-            elif k == 'MCS':
-                ret.update({'MCS': self.srs.eNb_MCS})
-            elif k == 'NET_PORT':
-                ret.update({'NET_PORT': self.srs.eNb_net_port})
-            elif k == 'NO_OF_PRBS':
-                ret.update({'NO_OF_PRBS': self.srs.eNb_no_of_prbs})
-            elif k == 'WHICH_PRBS':
-                ret.update({'WHICH_PRBS': self.srs.eNb_which_prbs})
-            elif k == 'NO_OF_FRAMES':
-                ret.update({'NO_OF_FRAMES': self.srs.eNb_no_of_frames})
+            if k == 'LTE_ENB_DL_FREQ':
+                ret.update({'LTE_ENB_DL_FREQ': self.srs.eNb_frequency})
+            elif k == 'LTE_ENB_RF_AMP':
+                ret.update({'LTE_ENB_RF_AMP':self.srs.eNb_rf_amp})
+            elif k == 'LTE_ENB_TX_GAIN':
+                ret.update({'LTE_ENB_TX_GAIN':self.srs.eNb_gain})
+            elif k == 'LTE_ENB_NO_OF_FRAMES':
+                ret.update({'LTE_ENB_NO_OF_FRAMES':self.srs.eNb_no_of_frames})
+            elif k == 'LTE_ENB_DL_BW':
+                if self.srs.eNb_no_of_prbs == 100:
+                    return_value = 20000000
+                elif self.srs.eNb_no_of_prbs == 75:
+                    return_value = 15000000
+                elif self.srs.eNb_no_of_prbs == 50:
+                    return_value = 10000000
+                elif self.srs.eNb_no_of_prbs == 25:
+                    return_value = 5000000
+                elif self.srs.eNb_no_of_prbs == 6:
+                    return_value = 2000000
+                ret.update({'LTE_ENB_DL_BW':return_value})
+            elif k == 'LTE_ENB_WHICH_PRBS':
+                ret.update({'LTE_ENB_WHICH_PRBS':self.srs.eNb_which_prbs})
+            elif k == 'LTE_ENB_MCS':
+                ret.update({'LTE_ENB_MCS': self.srs.eNb_MCS})
+            elif k == 'LTE_ENB_NET_PORT':
+                ret.update({'LTE_ENB_NET_PORT': self.srs.eNb_net_port})
+            elif k == 'LTE_ENB_PDSCH_DATA':
+                ret.update({'LTE_ENB_PDSCH_DATA': self.srs.eNb_send_pdsch_data})
+            elif k == 'LTE_ENB_RNTI':
+                ret.update({'LTE_ENB_RNTI': self.srs.eNb_rnti})
             else:
                 print("invalid parameter\n")
         return ret
