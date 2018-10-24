@@ -50,7 +50,7 @@ class srslte_iface:
                  ue_port_client = 2222,
                  eNb_port_server = 4321,
                  eNb_port_client = 2222,
-                 directory = "/home/tallonj/srsLTE"
+                 directory = "/opt/srsLTE"
                  ):
         self.ip = ip
         self.ue_port_server = ue_port_server
@@ -585,8 +585,8 @@ class SrslteModule(wishful_module.AgentModule):
                 ret.update({'LTE_UE_EQUALIZER_MODE':self.srs.ue_equalizer})
             elif k == 'LTE_UE_MAX_TURBO_ITS':
                 ret.update({'LTE_UE_MAX_TURBO_ITS':self.srs.ue_max_turbo_decoder_its})
-            elif k == 'LTE_NOISE_EST_ALG':
-                ret.update({'LTE_NOISE_EST_ALG':self.srs.ue_noise_est_alg})
+            elif k == 'LTE_UE_NOISE_EST_ALG':
+                ret.update({'LTE_UE_NOISE_EST_ALG':self.srs.ue_noise_est_alg})
             elif k == 'LTE_UE_SSS_ALGORITHM':
                 ret.update({'LTE_UE_SSS_ALGORITHM':self.srs.ue_sss_algorithm})
             elif k == 'LTE_UE_SNR_EMA_COEFF':
@@ -595,16 +595,16 @@ class SrslteModule(wishful_module.AgentModule):
                 ret.update({'LTE_UE_CFO_TOL':self.srs.ue_cfo_tol})
             elif k == 'LTE_UE_RX_GAIN':
                 ret.update({'LTE_UE_RX_GAIN':self.srs.ue_gain})
-            elif k == 'NO_OF_ANTENNAS':
-                ret.update({'NO_OF_ANTENNAS':self.srs.ue_nof_antennas})
-            elif k == 'LTE_RX_RNTI':
-                ret.update({'LTE_RX_RNTI':self.srs.set_ue_rnti(v)})
+            elif k == 'LTE_UE_NO_OF_ANTENNAS':
+                ret.update({'LTE_UE_NO_OF_ANTENNAS':self.srs.ue_nof_antennas})
+            elif k == 'LTE_UE_RX_RNTI':
+                ret.update({'LTE_UE_RX_RNTI':self.srs.set_ue_rnti(v)})
             else:
                 print("invalid parameter\n")
         return ret
 
     def srslte_get_enb_var(self, param_key_list):
-        ret = {}
+        ret = {}	
         for k  in param_key_list:
             if k == 'LTE_ENB_DL_FREQ':
                 ret.update({'LTE_ENB_DL_FREQ': self.srs.eNb_frequency})
